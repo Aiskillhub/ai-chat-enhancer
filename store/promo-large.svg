@@ -1,0 +1,33 @@
+<svg width="920" height="680" viewBox="0 0 920 680" xmlns="http://www.w3.org/2000/svg">
+  <rect width="920" height="680" fill="#fafafa"/>
+  <!-- Subtle background circle -->
+  <circle cx="460" cy="260" r="280" fill="#f0f0f0"/>
+  <!-- Logo mark - center≈(374,248), scaled to ~200px wide -->
+  <g transform="translate(460,255) scale(0.55) translate(-374,-248)">
+    <g transform="translate(0,495) scale(0.1,-0.1)" fill="#111" stroke="none">
+      <path d="M2733 4398 c-300 -487 -643 -1043 -1118 -1813 -126 -203 -303 -491
+      -395 -640 -91 -148 -332 -538 -535 -865 -484 -781 -626 -1012 -632 -1027 l-5
+      -13 649 0 648 0 42 67 c22 38 83 138 135 223 53 85 229 376 393 645 242 398
+      913 1491 1081 1762 22 35 41 63 44 63 4 0 433 -691 616 -994 34 -56 216 -353
+      404 -661 188 -308 417 -683 509 -832 l166 -273 648 0 c356 0 647 2 647 5 0 5
+      -216 359 -455 745 -87 140 -181 293 -210 340 -29 47 -105 171 -170 275 -65
+      105 -182 294 -260 420 -389 632 -893 1451 -1105 1795 -436 708 -612 994 -698
+      1135 -46 77 -86 141 -87 143 -2 2 -142 -223 -312 -500z"/>
+      <path d="M6380 2425 l0 -2385 545 0 545 0 0 2385 0 2385 -545 0 -545 0 0 -2385z"/>
+    </g>
+  </g>
+  <!-- Title -->
+  <text x="460" y="480" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="48" font-weight="700" fill="#111" text-anchor="middle" letter-spacing="-1">AI Chat Enhancer</text>
+  <!-- Subtitle -->
+  <text x="460" y="520" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="16" fill="#888" text-anchor="middle" letter-spacing="1">SUPERCHARGE YOUR AI CONVERSATIONS</text>
+  <!-- Features row -->
+  <g transform="translate(130,560)" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="14" fill="#555">
+    <text x="0" y="0" text-anchor="middle">30+ Built-in Prompts</text>
+    <text x="160" y="0" text-anchor="middle">Nested Folders</text>
+    <text x="320" y="0" text-anchor="middle">Export MD / PDF / JSON</text>
+    <text x="500" y="0" text-anchor="middle">Slash Trigger</text>
+    <text x="660" y="0" text-anchor="middle">6 AI Platforms</text>
+  </g>
+  <!-- Bottom platforms -->
+  <text x="460" y="630" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="12" fill="#ccc" text-anchor="middle">ChatGPT &amp;#183; Claude &amp;#183; DeepSeek &amp;#183; Gemini &amp;#183; Grok &amp;#183; Perplexity</text>
+</svg>
