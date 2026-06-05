@@ -29,11 +29,41 @@ const BUILTIN_TEMPLATES = [
   { title:'Feedback / Critique', content:'Provide constructive feedback on the following work. Use the "sandwich method" (positive → improvement areas → positive). Be specific and actionable:\n\n\n\nFocus on: clarity, structure, impact, and accuracy.', tags:['writing','productivity'], builtin:true, createdAt:Date.now() },
 ];
 
-// Context menu: save selected text as template
+// Context menu: AI Chat Enhancer quick actions
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: 'save-as-template',
-    title: 'Save to AI Chat Enhancer',
+    id: 'ce-parent',
+    title: 'AI Chat Enhancer',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'ce-explain',
+    parentId: 'ce-parent',
+    title: 'Explain this',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'ce-summarize',
+    parentId: 'ce-parent',
+    title: 'Summarize this',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'ce-improve',
+    parentId: 'ce-parent',
+    title: 'Improve writing',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'ce-translate',
+    parentId: 'ce-parent',
+    title: 'Translate to English',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
+    id: 'ce-save-template',
+    parentId: 'ce-parent',
+    title: 'Save as template',
     contexts: ['selection']
   });
 
@@ -55,8 +85,21 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'save-as-template' && info.selectionText) {
-    chrome.tabs.sendMessage(tab.id, { type: 'SAVE_SELECTION', text: info.selectionText });
+  const text = info.selectionText;
+  if (!text) return;
+
+  const prompts = {
+    'ce-explain': 'Explain the following in detail, as if to a beginner. Break down key concepts:\n\n' + text,
+    'ce-summarize': 'Summarize the following concisely. Extract the key points and main takeaways:\n\n' + text,
+    'ce-improve': 'Improve the following writing. Fix grammar, clarity, and flow while keeping the original meaning:\n\n' + text,
+    'ce-translate': 'Translate the following to natural, fluent English:\n\n' + text,
+    'ce-save-template': null, // handled by content script
+  };
+
+  if (info.menuItemId === 'ce-save-template') {
+    chrome.tabs.sendMessage(tab.id, { type: 'SAVE_SELECTION', text });
+  } else if (prompts[info.menuItemId]) {
+    chrome.tabs.sendMessage(tab.id, { type: 'INSERT_PROMPT', text: prompts[info.menuItemId] });
   }
 });
 
@@ -76,14 +119,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+  if (request.type === 'OPTIMIZE_PROMPT') {
+    optimizePrompt(request.text).then(sendResponse);
+    return true;
+  }
   if (request.type === 'ACTIVATE_PRO') {
     const licenseKey = request.licenseKey || '';
     if (!licenseKey) {
       sendResponse({ success: false, error: 'Please enter a license key.' });
       return true;
     }
-    // Verify against Payhip License v2 API
-    // REPLACE_WITH_YOUR_SECRET: get this from Payhip → Product → Edit → License Keys → Product Secret Key
+    // Payhip API v2 license verification (public product secret key)
     const PRODUCT_SECRET_KEY = 'prod_sk_WiVe1_b96629ea9a169d42fb848ce0b90879202c6c0035';
     fetch(`https://payhip.com/api/v2/license/verify?license_key=${encodeURIComponent(licenseKey)}`, {
       headers: { 'product-secret-key': PRODUCT_SECRET_KEY }
@@ -103,7 +149,96 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   }
+  if (request.type === 'DEACTIVATE_PRO') {
+    chrome.storage.local.remove(['isPro', 'licenseKey'], () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
 });
+
+async function optimizePrompt(text) {
+  const data = await chrome.storage.local.get(['isPro', 'apiKey', 'apiProvider', 'apiBaseUrl']);
+  if (!data.isPro) {
+    return { success: false, error: 'Pro required for AI Optimizer.' };
+  }
+  const apiKey = data.apiKey;
+  if (!apiKey) {
+    return { success: false, error: 'Set your API key in the extension popup.' };
+  }
+  const provider = data.apiProvider || 'deepseek';
+
+  const systemMsg = 'You are an expert prompt engineer. Improve the user\'s prompt to be more specific, detailed, and effective. Add relevant context, constraints, and structure. Return ONLY the improved prompt text, no explanations or prefixes. Preserve the original language and intent.';
+  const userMsg = 'Optimize this prompt:\n\n' + text;
+
+  try {
+    let res, json, optimized;
+
+    if (provider === 'anthropic') {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2000,
+          system: systemMsg,
+          messages: [{ role: 'user', content: userMsg }]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return { success: false, error: 'API error: ' + (res.status === 401 ? 'Invalid API key' : res.status === 429 ? 'Rate limited' : res.status + ' ' + err.slice(0, 80)) };
+      }
+      json = await res.json();
+      optimized = json.content && json.content[0] ? json.content[0].text.trim() : '';
+    } else {
+      // OpenAI-compatible: deepseek, openai, custom
+      let endpoint, model;
+      if (provider === 'openai') {
+        endpoint = 'https://api.openai.com/v1/chat/completions';
+        model = 'gpt-4o-mini';
+      } else if (provider === 'custom') {
+        endpoint = data.apiBaseUrl || 'https://api.openai.com/v1/chat/completions';
+        model = 'gpt-4o-mini';
+      } else {
+        // deepseek (default)
+        endpoint = 'https://api.deepseek.com/v1/chat/completions';
+        model = 'deepseek-chat';
+      }
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: systemMsg },
+            { role: 'user', content: userMsg }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        })
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return { success: false, error: 'API error: ' + (res.status === 401 ? 'Invalid API key' : res.status === 429 ? 'Rate limited' : res.status + ' ' + err.slice(0, 80)) };
+      }
+      json = await res.json();
+      optimized = json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content.trim() : '';
+    }
+
+    if (!optimized) return { success: false, error: 'Empty response from API.' };
+    return { success: true, optimized };
+  } catch (err) {
+    return { success: false, error: 'Network error: ' + (err.message || 'unknown') };
+  }
+}
 
 async function checkUsageLimit() {
   const data = await chrome.storage.local.get(['usageCount', 'usageDate', 'isPro']);

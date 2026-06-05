@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Chat Enhancer",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "Prompt templates, chat backup, bulk export, and full-text search for AI conversations",
   "permissions": ["storage", "contextMenus"],
   "host_permissions": [
@@ -11,7 +11,6 @@
     "https://chat.deepseek.com/*",
     "https://gemini.google.com/*",
     "https://grok.com/*",
-    "https://x.com/i/grok/*",
     "https://perplexity.ai/*"
   ],
   "content_scripts": [
@@ -23,7 +22,6 @@
         "https://chat.deepseek.com/*",
         "https://gemini.google.com/*",
         "https://grok.com/*",
-        "https://x.com/i/grok/*",
         "https://perplexity.ai/*"
       ],
       "js": ["content.js"],
@@ -42,5 +40,7 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "minimum_chrome_version": "88",
+  "privacy_policy_url": "https://aiskillhub.github.io/ai-chat-enhancer/"
 }

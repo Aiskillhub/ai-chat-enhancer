@@ -59,6 +59,26 @@
         <option value="ctrl+shift+e">Ctrl+Shift+E</option>
       </select>
     </div>
+    <div style="margin-top:10px" id="apiKeySection">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span class="stat-label" style="font-size:11px">Optimizer API:</span>
+        <select id="apiProvider" style="flex:1;padding:4px 4px;border-radius:4px;border:1px solid #444;background:#111122;color:#fff;font-size:10px">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:4px">
+        <input type="password" id="apiKeyInput" placeholder="API Key..." style="flex:1;padding:5px 7px;border-radius:4px;border:1px solid #444;background:#111122;color:#fff;font-size:10px">
+        <button class="btn btn-small" id="saveApiKeyBtn" style="padding:4px 8px;font-size:10px;white-space:nowrap;background:#6c5ce7;color:#fff;border:none;border-radius:4px;cursor:pointer">Save</button>
+      </div>
+      <div id="customUrlRow" style="display:none;margin-top:4px">
+        <input type="text" id="apiBaseUrl" placeholder="https://your-api.com/v1/chat/completions" style="width:100%;padding:5px 7px;border-radius:4px;border:1px solid #444;background:#111122;color:#fff;font-size:10px;box-sizing:border-box">
+      </div>
+      <div class="msg" id="apiKeyMsg"></div>
+      <div class="tip" style="margin-top:2px">For AI Prompt Optimizer (Pro only).<br>Key stored locally, never shared.</div>
+    </div>
   </div>
   <div class="popup-footer">
     <button class="btn btn-primary" id="openChatGPTBtn">Open ChatGPT</button>
@@ -67,7 +87,8 @@
     <button class="btn btn-primary" id="openGeminiBtn">Open Gemini</button>
     <button class="btn btn-primary" id="openGrokBtn">Open Grok</button>
     <button class="btn btn-primary" id="openPerplexityBtn">Open Perplexity</button>
-    <button class="btn btn-secondary" id="upgradeBtn">Upgrade to Pro - $5</button>
+    <button class="btn btn-secondary" id="importTemplateBtn">Import Template</button>
+    <button class="btn btn-secondary" id="upgradeBtn">Upgrade to Pro - $5/month</button>
     <div id="activateSection" class="hidden">
       <div class="activate-row">
         <input id="activateCode" placeholder="Activation code">
@@ -75,7 +96,24 @@
       </div>
       <div class="msg" id="activateMsg"></div>
     </div>
+    <div id="deactivateSection" class="hidden" style="margin-top:6px;text-align:center">
+      <button class="btn btn-secondary btn-small" id="deactivateBtn" style="color:#f44336;border-color:#f44336">Deactivate License</button>
+    </div>
     <p class="tip"><strong>Tip:</strong> <span id="shortcutTip">Use the shortcut above to toggle sidebar</span></p>
+    <details style="margin-top:10px;font-size:11px;color:#888">
+      <summary style="cursor:pointer;color:#aaa">What's New (v1.4)</summary>
+      <div style="padding:8px 0;line-height:1.6">
+        <strong>New in v1.4:</strong><br>
+        • AI Prompt Optimizer (Pro)<br>
+        • Right-click quick actions<br>
+        • Multi-provider API support<br>
+        <strong>v1.3:</strong><br>
+        • Template search & sorting<br>
+        • Copy & import templates<br>
+        • Enhanced PDF export<br>
+        • Share templates as JSON
+      </div>
+    </details>
   </div>
   <script src="popup.js"></script>
 </body>

@@ -24,7 +24,7 @@
     if (host.includes('claude.ai')) return 'claude';
     if (host.includes('deepseek.com')) return 'deepseek';
     if (host.includes('gemini.google.com')) return 'gemini';
-    if (host.includes('grok.com') || host.includes('x.com')) return 'grok';
+    if (host.includes('grok.com')) return 'grok';
     if (host.includes('perplexity.ai')) return 'perplexity';
     return 'chatgpt';
   }
@@ -51,7 +51,14 @@
 
   function checkOnboarding() {
     chrome.storage.local.get(['onboardingDone'], (data) => {
-      if (data.onboardingDone) return;
+      if (data.onboardingDone) {
+        const btn = document.getElementById('ce-toggle-btn');
+        if (btn) btn.classList.remove('ce-pulse');
+        return;
+      }
+      // Pulse the toggle button to draw attention
+      const btn = document.getElementById('ce-toggle-btn');
+      if (btn) btn.classList.add('ce-pulse');
       const steps = [
         '<strong>1. Save a template</strong><br>Type a prompt in the chat input, open the sidebar, click "+ Save Current Prompt".',
         '<strong>2. Quick insert with /</strong><br>Type <code>/</code> in any chat input to search and insert templates instantly.',
@@ -60,7 +67,7 @@
       showModal('Welcome to AI Chat Enhancer',
         '<div style="line-height:2;font-size:12px">' + steps.join('<br><br>') + '</div>',
         () => {
-          chrome.storage.local.set({ onboardingDone: true });
+          chrome.storage.local.set({ onboardingDone: true }); const pb = document.getElementById("ce-toggle-btn"); if (pb) pb.classList.remove("ce-pulse");
           showToast('Enjoy!');
         }
       );
@@ -188,7 +195,7 @@
     });
 
     document.getElementById('ce-upgrade-btn').addEventListener('click', () => {
-      window.open('https://payhip.com/b/WiVe1', '_blank');
+      window.open('https://aiskillhub.github.io/ai-chat-enhancer/', '_blank');
     });
 
     document.getElementById('ce-theme-btn').addEventListener('click', toggleTheme);
@@ -225,10 +232,15 @@
     const usageInfo = document.getElementById('ce-usage-info');
     if (badge) badge.textContent = isPro ? 'PRO' : '';
     if (banner) banner.style.display = isPro ? 'none' : 'block';
-    if (usageInfo && !isPro) {
-      usageInfo.textContent = 'Free: ' + (dailyRemaining === Infinity ? 'unlimited' : dailyRemaining + ' uses today');
-    } else if (usageInfo) {
-      usageInfo.textContent = 'Pro - unlimited';
+    if (usageInfo) {
+      if (isPro) {
+        usageInfo.innerHTML = '<span style="color:#6c5ce7;font-weight:600">Pro</span> &mdash; unlimited usage';
+      } else {
+        const used = 10 - (dailyRemaining === Infinity ? 10 : Math.max(0, dailyRemaining));
+        const pct = Math.min(100, (used / 10) * 100);
+        const color = pct >= 90 ? "#e74c3c" : pct >= 70 ? "#f39c12" : "#6c5ce7";
+        usageInfo.innerHTML = '<div class="ce-usage-bar-wrapper"><div class="ce-usage-bar"><div class="ce-usage-fill" style="width:' + pct + '%;background:' + color + '"></div></div><span class="ce-usage-text">' + used + '/10 uses today</span></div>';
+      }
     }
   }
 
@@ -377,8 +389,9 @@
   }
 
   // ─────────────── Templates ───────────────
-  let templateFilter = null; // current tag filter
-  let templateSort = 'recent'; // 'recent' | 'usage' | 'alpha'
+  let templateFilter = null;
+  let templateSort = 'recent';
+  let templateSearch = '';
 
   function getAllTags() {
     const s = new Set();
@@ -391,7 +404,10 @@
     if (!container) return;
     const builtins = templates.filter(t => t.builtin);
     const userTemplates = templates.filter(t => !t.builtin);
-    let html = '<button class="ce-save-btn" id="ce-save-template-btn">+ Save Current Prompt</button>';
+    let html = '<div style="display:flex;gap:8px;margin-bottom:12px"><button class="ce-save-btn" id="ce-save-template-btn" style="flex:1;margin-bottom:0">+ Save Prompt</button><button class="ce-optimize-btn" id="ce-optimize-btn" title="AI Optimize (Pro)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span style="font-size:11px;font-weight:600">Optimize</span></button></div>';
+
+    // Search input
+    html += '<div style="margin-bottom:8px"><input class="ce-template-search" id="ce-template-search" type="text" placeholder="Filter templates..." value="' + escHtml(templateSearch) + '"></div>';
 
     // Action bar: Select mode + Sort
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
@@ -417,7 +433,11 @@
       : templateSort === 'alpha' ? (a, b) => a.title.localeCompare(b.title)
       : (a, b) => (b.createdAt || 0) - (a.createdAt || 0);
 
-    const filtered = templateFilter ? userTemplates.filter(t => (t.tags || []).includes(templateFilter)) : [...userTemplates];
+    let filtered = templateFilter ? userTemplates.filter(t => (t.tags || []).includes(templateFilter)) : [...userTemplates];
+    if (templateSearch) {
+      const q = templateSearch.toLowerCase();
+      filtered = filtered.filter(t => t.title.toLowerCase().includes(q) || t.content.toLowerCase().includes(q) || (t.tags || []).some(tag => tag.toLowerCase().includes(q)));
+    }
     filtered.sort(sortFn);
     const pinned = filtered.filter(t => t.pinned);
     const recent = (!templateFilter && !bulkSelectMode) ? filtered.filter(t => !t.pinned && t.lastUsedAt).sort((a, b) => b.lastUsedAt - a.lastUsedAt).slice(0, 5) : [];
@@ -479,7 +499,13 @@
     const tagHtml = (t.tags || []).map(tag => '<span class="ce-tag-label">' + escHtml(tag) + '</span>').join('');
     const chainHtml = t.chainId ? '<span class="ce-chain-badge" title="Chain: ' + escHtml(t.chainId) + ' step ' + (t.chainOrder||0) + '"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>' : '';
     const builtinHtml = isBuiltin ? '<span class="ce-builtin-badge">Built-in</span>' : '';
-    const useCountHtml = (!isBuiltin && t.useCount) ? '<span class="ce-use-count" title="Used ' + t.useCount + ' times">' + t.useCount + '</span>' : '';
+      let statsHtml = '';
+      if (!isBuiltin && (t.useCount || t.lastUsedAt)) {
+        let parts = [];
+        if (t.useCount) parts.push('<span class="ce-use-count" title="Used ' + t.useCount + ' times">' + (t.useCount > 999 ? (t.useCount/1000).toFixed(1) + 'k' : t.useCount) + '</span>');
+        if (t.lastUsedAt) { const ago = Math.floor((Date.now() - t.lastUsedAt) / 86400000); parts.push('<span class="ce-last-used">' + (ago === 0 ? 'today' : ago + 'd ago') + '</span>'); }
+        statsHtml = parts.join(' ');
+      }
     const pinHtml = !isBuiltin ? '<span class="ce-pin-btn" data-idx="' + origIdx + '" title="' + (t.pinned ? 'Unpin' : 'Pin to top') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="' + (t.pinned ? '#f1c40f' : 'none') + '" stroke="' + (t.pinned ? '#f1c40f' : 'currentColor') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>' : '';
     const bulkHtml = (!isBuiltin && bulkSelectMode) ? '<input type="checkbox" class="ce-bulk-check" data-idx="' + origIdx + '" ' + (t._selected ? 'checked' : '') + '>' : '';
     const isExpanded = expandedCardIdx === origIdx;
@@ -489,14 +515,21 @@
     if (isBuiltin) {
       actionsHtml = '<button class="ce-copy-btn" data-idx="' + origIdx + '">Copy to Mine</button>';
     } else {
-      actionsHtml = '<button class="ce-insert-btn" data-idx="' + origIdx + '">Insert</button> <button class="ce-edit-template-btn" data-idx="' + origIdx + '">Edit</button> <button class="ce-delete-template-btn" data-idx="' + origIdx + '" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+      actionsHtml = '<button class="ce-insert-btn" data-idx="' + origIdx + '">Insert</button> <button class="ce-share-template-btn" data-idx="' + origIdx + '" title="Copy as JSON">Copy</button> <button class="ce-edit-template-btn" data-idx="' + origIdx + '">Edit</button> <button class="ce-delete-template-btn" data-idx="' + origIdx + '" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
     }
-    return '<div class="ce-template-card" draggable="' + (!isBuiltin && !bulkSelectMode) + '" data-idx="' + origIdx + '"><div class="ce-template-title">' + bulkHtml + chainHtml + escHtml(t.title) + pinHtml + builtinHtml + useCountHtml + '</div><div class="ce-template-preview" data-idx="' + origIdx + '">' + (isExpanded ? '' : renderMarkdownPreview(preview)) + '</div>' + expandHtml + (tagHtml ? '<div class="ce-template-tags">' + tagHtml + '</div>' : '') + '<div class="ce-template-actions">' + actionsHtml + '</div></div>';
+    return '<div class="ce-template-card" draggable="' + (!isBuiltin && !bulkSelectMode) + '" data-idx="' + origIdx + '"><div class="ce-template-title">' + bulkHtml + chainHtml + escHtml(t.title) + pinHtml + builtinHtml + statsHtml + '</div><div class="ce-template-preview" data-idx="' + origIdx + '">' + (isExpanded ? '' : renderMarkdownPreview(preview)) + '</div>' + expandHtml + (tagHtml ? '<div class="ce-template-tags">' + tagHtml + '</div>' : '') + '<div class="ce-template-actions">' + actionsHtml + '</div></div>';
   }
 
   function bindTemplateEvents(container) {
     const saveBtn = container.querySelector('#ce-save-template-btn');
     if (saveBtn) saveBtn.addEventListener('click', saveCurrentPrompt);
+
+    const optimizeBtn = container.querySelector('#ce-optimize-btn');
+    if (optimizeBtn) optimizeBtn.addEventListener('click', handleOptimize);
+
+    // Search input
+    const searchInput = container.querySelector('#ce-template-search');
+    if (searchInput) searchInput.addEventListener('input', (e) => { templateSearch = e.target.value; renderTemplates(); });
 
     // Sort selector
     const sortSel = container.querySelector('#ce-sort-select');
@@ -564,6 +597,9 @@
     });
     container.querySelectorAll('.ce-copy-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); copyBuiltin(parseInt(btn.dataset.idx)); });
+    });
+    container.querySelectorAll('.ce-share-template-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); shareTemplate(parseInt(btn.dataset.idx)); });
     });
     container.querySelectorAll('.ce-edit-template-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); editTemplate(parseInt(btn.dataset.idx)); });
@@ -661,6 +697,37 @@
     setTimeout(() => { const el = document.getElementById('ce-modal-title'); if (el) el.focus(); }, 50);
   }
 
+  async function handleOptimize() {
+    const btn = document.getElementById('ce-optimize-btn');
+    if (!btn) return;
+
+    const input = findChatGPTInput();
+    const text = input ? getInputText(input) : '';
+    if (!text.trim()) return showToast('Type a prompt first, then click Optimize.');
+
+    if (!(await trackUsage())) return showUpgrade();
+
+    btn.disabled = true;
+    btn.classList.add('ce-optimizing');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> <span style="font-size:11px;font-weight:600">...</span>';
+
+    chrome.runtime.sendMessage({ type: 'OPTIMIZE_PROMPT', text }, (res) => {
+      btn.disabled = false;
+      btn.classList.remove('ce-optimizing');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span style="font-size:11px;font-weight:600">Optimize</span>';
+
+      if (res && res.success) {
+        if (input) {
+          setInputText(input, res.optimized);
+          showToast('Prompt optimized!');
+          chrome.runtime.sendMessage({ type: 'INCREMENT_USAGE' });
+        }
+      } else {
+        showToast((res && res.error) || 'Optimization failed. Check API key in popup.');
+      }
+    });
+  }
+
   function copyBuiltin(idx) {
     const t = templates[idx];
     if (!t || !t.builtin) return;
@@ -672,6 +739,13 @@
         renderTemplates(); showToast('Copied to My Templates!');
       });
     });
+  }
+
+  function shareTemplate(idx) {
+    const t = templates[idx];
+    if (!t || t.builtin) return;
+    const share = { title: t.title, content: t.content, tags: t.tags || [], v: 1 };
+    navigator.clipboard.writeText(JSON.stringify(share)).then(() => showToast('Template copied! Share JSON with anyone.'), () => showToast('Copy failed'));
   }
 
   function editTemplate(idx) {
@@ -960,7 +1034,7 @@
     if (msgs.length === 0) return showToast('No messages found');
     const title = getConversationTitle();
     const aiName = getPlatformName();
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escHtml(title) + '</title><style>body{font-family:-apple-system,sans-serif;max-width:800px;margin:40px auto;padding:20px;color:#222;line-height:1.8}.msg{margin-bottom:20px;padding:12px 16px;border-radius:8px}.user{background:#f0f4ff}.ai{background:#f5f5f5}.role{font-weight:700;font-size:13px;color:#888;margin-bottom:4px}.text{font-size:14px;white-space:pre-wrap}</style></head><body><h1>' + escHtml(title) + '</h1>' + msgs.map(m => '<div class="msg ' + (m.role === 'user' ? 'user' : 'ai') + '"><div class="role">' + (m.role === 'user' ? 'You' : aiName) + '</div><div class="text">' + escHtml(m.text) + '</div></div>').join('') + '</body></html>';
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escHtml(title) + '</title><style>@page{margin:20mm}body{font-family:-apple-system,BlinkMacSystemFont,Georgia,serif;max-width:750px;margin:0 auto;padding:20px;color:#1a1a1a;line-height:1.9;font-size:15px}h1{font-size:26px;border-bottom:2px solid #6c5ce7;padding-bottom:12px;margin-bottom:32px;color:#111}.msg{margin-bottom:24px;padding:16px 20px;border-radius:10px;page-break-inside:avoid}.user{background:linear-gradient(135deg,#eef2ff,#e8ecf8);border-left:4px solid #6c5ce7}.ai{background:#f8f8f8;border-left:4px solid #ccc}.role{font-weight:700;font-size:12px;color:#6c5ce7;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}.text{font-size:14px;white-space:pre-wrap;word-wrap:break-word}.footer{text-align:center;font-size:11px;color:#999;margin-top:40px;border-top:1px solid #eee;padding-top:16px}code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.5}</style></head><body><h1>' + escHtml(title) + '</h1><p style="color:#888;font-size:13px;margin-bottom:24px">Exported from ' + aiName + ' &middot; ' + new Date().toLocaleDateString() + '</p>' + msgs.map(m => '<div class="msg ' + (m.role === 'user' ? 'user' : 'ai') + '"><div class="role">' + (m.role === 'user' ? 'You' : aiName) + '</div><div class="text">' + escHtml(m.text) + '</div></div>').join('') + '<div class="footer">Generated by AI Chat Enhancer</div></body></html>';
     const w = window.open('', '_blank', 'width=800,height=600');
     if (!w) return showToast('Popup blocked. Allow popups for this site.');
     w.document.write(html);
@@ -1030,25 +1104,31 @@
 
   // ─────────────── DOM Helpers (multi-platform) ───────────────
   function findChatGPTInput() {
+    // Platform-aware selector order: specific editors first, generic tags last
     const selectors = [
+      // ChatGPT
       '#prompt-textarea',
       'textarea[data-id="root"]',
+      '#prompt-textarea-quiz',
+      // Claude / Gemini (ProseMirror)
+      '.ProseMirror[contenteditable="true"]',
+      // Grok (Slate)
+      '[data-slate-editor="true"]',
+      // Generic contenteditable / ARIA role
+      'div[contenteditable="true"][role="textbox"]',
+      '[role="textbox"][contenteditable="true"]',
+      'div[contenteditable="true"]',
+      // Generic textarea (lowest priority)
       'textarea[placeholder*="Message"]',
       'textarea[placeholder*="message"]',
-      'textarea',
-      'div[contenteditable="true"][role="textbox"]',
-      'div[contenteditable="true"]',
-      '.ProseMirror[contenteditable="true"]',
-      '#prompt-textarea-quiz',
       'form textarea',
-      '[role="textbox"][contenteditable="true"]',
-      '[data-slate-editor="true"]',
+      'textarea',
     ];
     for (const sel of selectors) {
       try {
         const el = document.querySelector(sel);
         if (el) return el;
-      } catch(e) {}
+      } catch(e) { console.debug('selector failed:', sel, e.message); }
     }
     // fallback: find any visible textarea-like element in the main area
     const allInputs = document.querySelectorAll('textarea, [contenteditable="true"]');
@@ -1061,16 +1141,21 @@
 
   function getInputText(input) {
     if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
-      return input.value;
+      return (input.value || '').trim();
     }
-    // For contenteditable divs like ChatGPT's prompt-textarea
-    // Try innerText first (handles line breaks), fall back to textContent
     return (input.innerText || input.textContent || '').trim();
   }
 
   function setInputText(input, text) {
-    if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); }
-    else { input.textContent = text; input.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // contenteditable — ProseMirror/Slate need beforeinput + input
+      input.textContent = text;
+      input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, inputType: 'insertText', data: text }));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
     input.focus();
   }
 
@@ -1092,7 +1177,7 @@
     }
     let els = [];
     for (const sel of selectors) {
-      try { els = document.querySelectorAll(sel); if (els.length > 0) break; } catch(e) {}
+      try { els = document.querySelectorAll(sel); if (els.length > 0) break; } catch(e) { console.debug('extractMessages: bad selector', sel, e.message); }
     }
     els.forEach(el => {
       let role = el.getAttribute('data-message-author-role');
@@ -1215,6 +1300,13 @@
 
   // ─────────────── Context Menu Handler (register once) ───────────────
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'INSERT_PROMPT' && request.text) {
+      const input = findChatGPTInput();
+      if (input) {
+        setInputText(input, request.text);
+        showToast('Prompt inserted!');
+      }
+    }
     if (request.type === 'SAVE_SELECTION' && request.text) {
       showModal('Save Template',
         '<label>Title</label><input id="ce-modal-title" placeholder="e.g. Code Review"><label>Content</label><textarea id="ce-modal-content">' + escHtml(request.text) + '</textarea><label>Tags (comma separated)</label><input id="ce-modal-tags" placeholder="e.g. coding, review">',
@@ -1233,19 +1325,41 @@
   });
 
   // ─────────────── Keyboard ───────────────
+  function parseShortcut(sc) {
+    // Normalize: lowercase, consistent order (ctrl > alt > shift > meta > key)
+    const parts = sc.toLowerCase().split('+');
+    return {
+      ctrl: parts.includes('ctrl'),
+      alt: parts.includes('alt'),
+      shift: parts.includes('shift'),
+      meta: parts.includes('cmd') || parts.includes('meta'),
+      key: parts.filter(p => !['ctrl','alt','shift','cmd','meta'].includes(p)).pop() || ''
+    };
+  }
+
+  function matchesShortcut(e, sc) {
+    const s = parseShortcut(sc);
+    const ctrlOk = s.ctrl ? e.ctrlKey : true;
+    const altOk = s.alt ? e.altKey : true;
+    const shiftOk = s.shift ? e.shiftKey : true;
+    const metaOk = s.meta ? (e.metaKey || e.ctrlKey) : true;
+    const keyOk = s.key ? e.key.toLowerCase() === s.key.toLowerCase() : true;
+    // Ensure no unexpected modifiers
+    const extraMods = (e.ctrlKey && !s.ctrl) || (e.altKey && !s.alt) || (e.shiftKey && !s.shift) || ((e.metaKey || e.ctrlKey) && !s.meta && !s.ctrl);
+    return ctrlOk && altOk && shiftOk && metaOk && keyOk && !extraMods;
+  }
+
   document.addEventListener('keydown', (e) => {
-    // Close sidebar on Escape
+    // Close sidebar on Escape (only if no modal is open)
     if (e.key === 'Escape' && sidebar && sidebar.classList.contains('open')) {
-      e.preventDefault();
-      toggleSidebar(false);
-      return;
+      if (!document.getElementById('ce-modal-overlay')) {
+        e.preventDefault();
+        toggleSidebar(false);
+        return;
+      }
     }
     // Toggle shortcut
-    let toggleMatch = false;
-    if (shortcutKey === 'shift+cmd+e') toggleMatch = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'e';
-    else if (shortcutKey === 'alt+e') toggleMatch = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'e';
-    else if (shortcutKey === 'ctrl+shift+e') toggleMatch = e.ctrlKey && e.shiftKey && !e.metaKey && e.key === 'e';
-    if (toggleMatch) { e.preventDefault(); toggleSidebar(); }
+    if (matchesShortcut(e, shortcutKey)) { e.preventDefault(); toggleSidebar(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'n' && e.shiftKey && chainState) { e.preventDefault(); insertNextInChain(); }
   });
 

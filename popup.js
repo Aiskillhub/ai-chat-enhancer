@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load data
   chrome.storage.local.get(
-    ['templates', 'folders', 'isPro', 'usageCount', 'usageDate', 'shortcut'],
+    ['templates', 'folders', 'isPro', 'usageCount', 'usageDate', 'shortcut', 'apiKey', 'apiProvider', 'apiBaseUrl'],
     (data) => {
       const templates = data.templates || [];
       const folders = data.folders || [];
@@ -26,6 +26,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const sc = data.shortcut || 'shift+cmd+e';
       if (sel) sel.value = sc;
       updateShortcutTip(sc);
+
+      // Deactivate section
+      document.getElementById('deactivateSection').classList.toggle('hidden', !isPro);
+      const apiKeyInput = document.getElementById('apiKeyInput');
+      const apiProvider = document.getElementById('apiProvider');
+      const apiBaseUrl = document.getElementById('apiBaseUrl');
+      const customUrlRow = document.getElementById('customUrlRow');
+      if (apiKeyInput && data.apiKey) apiKeyInput.value = data.apiKey;
+      if (apiProvider && data.apiProvider) apiProvider.value = data.apiProvider;
+      if (apiBaseUrl && data.apiBaseUrl) apiBaseUrl.value = data.apiBaseUrl;
+      if (customUrlRow && apiProvider) {
+        customUrlRow.style.display = apiProvider.value === 'custom' ? 'block' : 'none';
+      }
+      // API key section visible for all users (Pro gate happens on usage)
+      const apiKeySection = document.getElementById('apiKeySection');
+      if (apiKeySection) {
+        apiKeySection.style.display = 'block';
+      }
     }
   );
 
@@ -59,9 +77,28 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: 'https://perplexity.ai' });
   });
 
+  // Import template from clipboard
+  document.getElementById('importTemplateBtn').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const tpl = JSON.parse(text);
+      if (!tpl.title || !tpl.content || !tpl.v) throw new Error('Invalid format');
+      chrome.storage.local.get(['templates'], (data) => {
+        const all = data.templates || [];
+        all.push({ title: tpl.title, content: tpl.content, tags: tpl.tags || [], createdAt: Date.now() });
+        chrome.storage.local.set({ templates: all }, () => {
+          document.getElementById('templateCount').textContent = all.length;
+          alert('Imported: ' + tpl.title + '\n\nReload the AI chat page to see it.');
+        });
+      });
+    } catch (e) {
+      alert('No valid template in clipboard.\n\nCopy a template JSON from AI Chat Enhancer first.\n(Click "Copy" on any template card in the sidebar.)');
+    }
+  });
+
   // Upgrade button
   document.getElementById('upgradeBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://payhip.com/b/WiVe1' });
+    chrome.tabs.create({ url: 'https://aiskillhub.github.io/ai-chat-enhancer/' });
     // Also show activate section after purchasing
     document.getElementById('activateSection').classList.remove('hidden');
   });
@@ -94,6 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('usageToday').textContent = '0/unlimited';
         document.getElementById('upgradeBtn').style.display = 'none';
         document.getElementById('activateSection').classList.add('hidden');
+        const apiKeySection = document.getElementById('apiKeySection');
+        if (apiKeySection) apiKeySection.style.display = 'block';
       } else {
         msgEl.className = 'msg error';
         msgEl.textContent = (res && res.error) || 'Invalid license key. Check your Payhip receipt.';
@@ -126,12 +165,30 @@ document.addEventListener('DOMContentLoaded', () => {
   // Backup
   document.getElementById('backupBtn').addEventListener('click', () => {
     chrome.storage.local.get(['templates','folders','isPro'], (data) => {
-      const backup = { templates: data.templates||[], folders: data.folders||[], isPro:!!data.isPro, exportedAt: new Date().toISOString(), version:'1.0' };
+      const backup = { templates: data.templates||[], folders: data.folders||[], exportedAt: new Date().toISOString(), version:'1.1' };
       const blob = new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href=url; a.download='ai-chat-enhancer-backup.json';
       a.click(); URL.revokeObjectURL(url);
     });
+  });
+
+  // Save API key
+  document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    const provider = document.getElementById('apiProvider').value;
+    const baseUrl = document.getElementById('apiBaseUrl').value.trim();
+    const msg = document.getElementById('apiKeyMsg');
+    chrome.storage.local.set({ apiKey: key, apiProvider: provider, apiBaseUrl: baseUrl }, () => {
+      msg.className = 'msg';
+      msg.textContent = key ? 'Saved.' : 'Cleared.';
+      setTimeout(() => { msg.textContent = ''; }, 2000);
+    });
+  });
+
+  // Show/hide custom URL when provider changes
+  document.getElementById('apiProvider').addEventListener('change', (e) => {
+    document.getElementById('customUrlRow').style.display = e.target.value === 'custom' ? 'block' : 'none';
   });
 
   // Import
@@ -158,5 +215,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
     reader.readAsText(file);
+  });
+
+  // Deactivate Pro
+  document.getElementById('deactivateBtn').addEventListener('click', () => {
+    if (!confirm('Deactivate Pro license? You can re-activate anytime.')) return;
+    chrome.runtime.sendMessage({ type: 'DEACTIVATE_PRO' }, (res) => {
+      if (res && res.success) {
+        document.getElementById('proBadge').style.display = 'none';
+        document.getElementById('statusText').textContent = 'Free';
+        document.getElementById('usageToday').textContent = '0/10';
+        document.getElementById('upgradeBtn').style.display = 'block';
+        document.getElementById('activateSection').classList.remove('hidden');
+        document.getElementById('deactivateSection').classList.add('hidden');
+        alert('Deactivated. Reload AI chat pages to apply.');
+      }
+    });
   });
 });
