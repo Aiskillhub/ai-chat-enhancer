@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Chat Enhancer",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Prompt templates, chat backup, bulk export, and full-text search for AI conversations",
   "permissions": ["storage", "contextMenus"],
   "host_permissions": [
