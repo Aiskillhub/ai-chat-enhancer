@@ -98,9 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Upgrade button
   document.getElementById('upgradeBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://aiskillhub.github.io/ai-chat-enhancer/' });
-    // Also show activate section after purchasing
+    chrome.tabs.create({ url: 'https://payhip.com/b/WiVe1' });
+    // Show activate section with guidance
     document.getElementById('activateSection').classList.remove('hidden');
+    const msgEl = document.getElementById('activateMsg');
+    msgEl.className = 'msg';
+    msgEl.textContent = 'After purchase, copy the license key from your Payhip receipt and paste it above.';
   });
 
   // Activate button
